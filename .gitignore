@@ -1,4 +1,6 @@
 /testdata
-/data/receita/*
-/data/tesouro/*
-/data/meta/*
+/resources/receita/*
+/resources/tesouro/*
+/resources/meta/*
+/db/mongo
+/db/postgres

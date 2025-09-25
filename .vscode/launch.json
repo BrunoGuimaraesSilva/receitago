@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug API",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/api",
+      "env": {
+        "DB_HOST": "localhost",
+        "DB_USER": "receitago_postgres",
+        "DB_PASS": "receitago",
+        "DB_NAME": "receitago"
+      },
+      "dlvFlags": ["--check-go-version=false"]
+    },
+    {
+      "name": "Debug Importer",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/importer",
+      "dlvFlags": ["--check-go-version=false"]
+    }
+  ]
+}

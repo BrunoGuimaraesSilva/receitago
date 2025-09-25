@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: receitago_postgres
+    environment:
+      POSTGRES_USER: receitago
+      POSTGRES_PASSWORD: receitago
+      POSTGRES_DB: receitago
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/postgres:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:6
+    container_name: receitago_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./db/mongo:/data/db
+
+  app:
+    build: .
+    container_name: receitago_app
+    depends_on:
+      - postgres
+      - mongo
+    environment:
+      POSTGRES_DSN: postgres://receitago:receitago@postgres:5432/receitago?sslmode=disable
+      MONGO_URI: mongodb://mongo:27017/receitago
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+
+  migrate:
+    image: migrate/migrate:v4.15.2
+    container_name: receitago_migrate
+    volumes:
+      - ./db/migrations:/migrations
+    command: [
+      "-path", "/migrations",
+      "-database", "postgres://receitago:receitago@postgres:5432/receitago?sslmode=disable",
+      "up"
+    ]
+    depends_on:
+      - postgres

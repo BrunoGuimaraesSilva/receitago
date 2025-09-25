@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS public.cnpjs;
+DROP SCHEMA IF EXISTS dictionaries CASCADE;
