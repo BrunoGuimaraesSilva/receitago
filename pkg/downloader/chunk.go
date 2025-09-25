@@ -31,18 +31,18 @@ func NewChunkDownloader(timeout time.Duration, chunkSizeMB int, maxRetries int, 
 }
 
 func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSeekCloser, error) {
-
+	// HEAD request to get size
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	resp, err := d.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("head request failed: %w", err)
+		return nil, fmt.Errorf("HEAD failed: %w", err)
 	}
 	resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("HEAD %s failed with %s", url, resp.Status)
 	}
 	size := resp.ContentLength
@@ -50,8 +50,9 @@ func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSee
 		return nil, fmt.Errorf("invalid content length for %s", url)
 	}
 
+	// temp file
 	tmpPath := filepath.Join(os.TempDir(), "receitago-"+filepath.Base(url))
-	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o644)
+	tmpFile, err := os.Create(tmpPath)
 	if err != nil {
 		return nil, err
 	}
@@ -67,16 +68,9 @@ func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSee
 		}
 
 		rangeHeader := fmt.Sprintf("bytes=%d-%d", start, end)
+
 		var lastErr error
-
 		for attempt := 1; attempt <= d.MaxRetries; attempt++ {
-			select {
-			case <-ctx.Done():
-				tmpFile.Close()
-				return nil, ctx.Err()
-			default:
-			}
-
 			chunkReq, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			chunkReq.Header.Set("Range", rangeHeader)
 
@@ -86,21 +80,20 @@ func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSee
 				d.waitRetry(ctx, attempt)
 				continue
 			}
+			defer chunkResp.Body.Close()
+
 			if chunkResp.StatusCode != http.StatusPartialContent && chunkResp.StatusCode != http.StatusOK {
 				lastErr = fmt.Errorf("unexpected status %s", chunkResp.Status)
-				chunkResp.Body.Close()
 				d.waitRetry(ctx, attempt)
 				continue
 			}
 
 			if _, err := tmpFile.Seek(start, 0); err != nil {
-				chunkResp.Body.Close()
 				tmpFile.Close()
 				return nil, err
 			}
 
 			n, err := io.Copy(tmpFile, chunkResp.Body)
-			chunkResp.Body.Close()
 			if err != nil {
 				lastErr = fmt.Errorf("copy failed: %w", err)
 				d.waitRetry(ctx, attempt)
@@ -112,7 +105,7 @@ func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSee
 
 			if d.PrintProgress {
 				percent := float64(downloaded) / float64(size) * 100
-				fmt.Printf("[%s] %.1f%% downloaded (%s/%s)\n",
+				fmt.Printf("[%s] %.1f%% (%s/%s)\n",
 					filename,
 					percent,
 					humanSize(downloaded),
@@ -124,24 +117,25 @@ func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSee
 
 		if lastErr != nil {
 			tmpFile.Close()
+			os.Remove(tmpPath)
 			return nil, fmt.Errorf("failed chunk %s after %d retries: %w", rangeHeader, d.MaxRetries, lastErr)
 		}
 	}
 
 	if _, err := tmpFile.Seek(0, 0); err != nil {
 		tmpFile.Close()
+		os.Remove(tmpPath)
 		return nil, err
 	}
 
 	return &tempFile{tmpFile}, nil
 }
 
-// waitRetry pauses before retrying, respecting context
 func (d *ChunkDownloader) waitRetry(ctx context.Context, attempt int) {
+	delay := time.Second * time.Duration(1<<uint(attempt-1)) // exponential backoff
 	select {
 	case <-ctx.Done():
-		return
-	case <-time.After(time.Second * time.Duration(attempt)):
+	case <-time.After(delay):
 	}
 }
 

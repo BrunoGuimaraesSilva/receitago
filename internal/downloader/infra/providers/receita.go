@@ -24,9 +24,11 @@ const (
 	federalRevenueTaxesPath  = "regime_tributario"
 )
 
-var yearMonthPattern = regexp.MustCompile(`href="(\d{4}-\d{2}/)"`)
-var filePattern = regexp.MustCompile(`href="(\w+\d?\.zip)"`)
-var taxFilePattern = regexp.MustCompile(`href="((Imune|Lucro).+\.zip)"`)
+var (
+	yearMonthPattern = regexp.MustCompile(`href="(\d{4}-\d{2}/)"`)
+	filePattern      = regexp.MustCompile(`href="(\w+\d?\.zip)"`)
+	taxFilePattern   = regexp.MustCompile(`href="((Imune|Lucro).+\.zip)"`)
+)
 
 type ReceitaProvider struct {
 	client  *http.Client
@@ -43,21 +45,22 @@ func NewReceitaProvider(baseDir string) *ReceitaProvider {
 func (p *ReceitaProvider) get(url string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("new request: %w", err)
 	}
 	req.Header.Set("User-Agent", receitaUserAgent)
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("http get %s: %w", url, err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s responded with %s", url, resp.Status)
+		return "", fmt.Errorf("http %s: %s", url, resp.Status)
 	}
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read body: %w", err)
 	}
 	return string(b), nil
 }
@@ -104,19 +107,19 @@ func (p *ReceitaProvider) sourceURLs(baseURL string) (string, []string, error) {
 
 	folderName, folderURL, err := p.mostRecentFolder(baseURL + federalRevenueSourcePath)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("get most recent folder: %w", err)
 	}
 
 	if p.isAlreadyDownloaded(folderName) {
-		return "", nil, fmt.Errorf("Latest base was already downloaded: %s", folderName)
+		return "", nil, fmt.Errorf("latest base already downloaded: %s", folderName)
 	}
 	if err := p.saveLastDownloaded(folderName); err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("save last downloaded: %w", err)
 	}
 
 	b, err := p.get(folderURL)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("list files: %w", err)
 	}
 	var urls []string
 	for _, m := range filePattern.FindAllStringSubmatch(b, -1) {
@@ -125,7 +128,7 @@ func (p *ReceitaProvider) sourceURLs(baseURL string) (string, []string, error) {
 
 	ts, err := p.taxRegimeURLs(baseURL + federalRevenueTaxesPath)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("list tax regime: %w", err)
 	}
 	urls = append(urls, ts...)
 
@@ -171,32 +174,8 @@ func (p *ReceitaProvider) ListNeeded(ctx context.Context) ([]dataset.Dataset, er
 			ID:       fmt.Sprintf("receita-%s-%d", folderName, i),
 			URL:      u,
 			Filename: filepath.Base(u),
+			// Published could be parsed from folderName (YYYY-MM)
 		}
 	}
 	return out, nil
-}
-
-func (p *ReceitaProvider) DownloadAllAndStore(
-	ctx context.Context,
-	downloader dataset.DownloaderPort,
-	storage dataset.FilestorerPort,
-) ([]dataset.Dataset, error) {
-	datasets, err := p.ListNeeded(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list datasets: %w", err)
-	}
-
-	for _, ds := range datasets {
-		file, err := downloader.Download(ctx, ds.URL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to download %s: %w", ds.URL, err)
-		}
-		defer file.Close()
-
-		if err := storage.Save(ctx, ds.Filename, file); err != nil {
-			return nil, fmt.Errorf("failed to store %s: %w", ds.Filename, err)
-		}
-	}
-
-	return datasets, nil
 }

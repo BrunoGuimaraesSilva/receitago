@@ -24,7 +24,7 @@ func RegisterRoutes(r chi.Router, pg *pgx.Conn, mongo *mongo.Client, cfg *config
 
 	r.Post("/import/dictionaries", func(w http.ResponseWriter, r *http.Request) {
 		repo := postgres.NewDictionaryRepo(pg)
-		if err := postgres.ImportAllDictionaries(r.Context(), repo, cfg.DataDir); err != nil {
+		if err := postgres.ImportAllDictionaries(r.Context(), repo, cfg.DataDir+"/zips"); err != nil {
 			httputil.WriteError(w, http.StatusInternalServerError, err)
 			return
 		}

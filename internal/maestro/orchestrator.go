@@ -27,7 +27,7 @@ func (o *Orchestrator) importMultiple(
 	baseDir, prefix string,
 	importFunc func(context.Context, *mongo.Collection, string) error,
 ) error {
-	pattern := filepath.Join(baseDir, prefix+"*.zip")
+	pattern := filepath.Join(baseDir+"/zips", prefix+"*.zip")
 	files, err := filepath.Glob(pattern)
 	if err != nil {
 		return fmt.Errorf("glob %s: %w", pattern, err)

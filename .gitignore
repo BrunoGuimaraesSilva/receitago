@@ -2,5 +2,7 @@
 /resources/receita/*
 /resources/tesouro/*
 /resources/meta/*
+/resources/zips
 /db/mongo
 /db/postgres
+/cmd/api/*.exe
