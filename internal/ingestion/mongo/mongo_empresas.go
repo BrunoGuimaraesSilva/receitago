@@ -8,10 +8,11 @@ import (
 	"io"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func ImportEmpresasZip(ctx context.Context, coll *mongo.Collection, zipPath string) error {
+func ImportEmpresasZip(ctx context.Context, coll *mongo.Collection, zipPath string, logger zerolog.Logger) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
@@ -33,6 +34,8 @@ func ImportEmpresasZip(ctx context.Context, coll *mongo.Collection, zipPath stri
 		var batch []interface{}
 		total := 0
 
+		logger.Info().Str("file", f.Name).Msg("Processing file inside zip")
+
 		for {
 			row, err := reader.Read()
 			if err == io.EOF {
@@ -43,7 +46,7 @@ func ImportEmpresasZip(ctx context.Context, coll *mongo.Collection, zipPath stri
 			}
 
 			if len(row) < 7 {
-				fmt.Printf("⚠️ Skipping row (len=%d): %v\n", len(row), row)
+				logger.Warn().Int("len", len(row)).Str("row_sample", fmt.Sprintf("%v", row)).Msg("⚠️ Skipping malformed row")
 				continue
 			}
 
@@ -62,22 +65,20 @@ func ImportEmpresasZip(ctx context.Context, coll *mongo.Collection, zipPath stri
 			total++
 
 			if len(batch) >= batchSize {
-				if err := insertBatch(ctx, coll, batch); err != nil {
+				if err := insertBatch(ctx, coll, batch, logger); err != nil {
 					return err
 				}
-				fmt.Printf("✅ Inserted %d docs into %s (running total: %d)\n", len(batch), coll.Name(), total)
 				batch = batch[:0]
 			}
 		}
 
 		if len(batch) > 0 {
-			if err := insertBatch(ctx, coll, batch); err != nil {
+			if err := insertBatch(ctx, coll, batch, logger); err != nil {
 				return err
 			}
-			fmt.Printf("✅ Inserted %d docs into %s (final batch, total: %d)\n", len(batch), coll.Name(), total)
 		}
 
-		fmt.Printf("🎯 Finished %s → total inserted: %d\n", f.Name, total)
+		logger.Info().Str("file", f.Name).Int("total", total).Msg("🎯 Finished processing file")
 	}
 	return nil
 }

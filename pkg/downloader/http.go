@@ -17,15 +17,14 @@ type HTTPDownloader struct {
 	UserAgent string
 }
 
-func NewHTTPDownloader(timeout time.Duration, userAgent string) *HTTPDownloader {
+func NewHTTPDownloader(cfg HTTPConfig) *HTTPDownloader {
 	return &HTTPDownloader{
 		Client:    &http.Client{},
-		Timeout:   timeout,
-		UserAgent: userAgent,
+		Timeout:   cfg.Timeout,
+		UserAgent: cfg.UserAgent,
 	}
 }
 
-// Download fetches a file over HTTP and stores it in a temporary file.
 func (d *HTTPDownloader) Download(ctx context.Context, url string) (iox.ReadSeekCloser, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.Timeout)
 	defer cancel()

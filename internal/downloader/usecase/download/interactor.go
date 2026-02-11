@@ -18,8 +18,17 @@ type Interactor struct {
 	RetryDelay time.Duration
 }
 
-func NewInteractor(p dataset.DatasetProvider, d dataset.DownloaderPort, f dataset.FilestorerPort, maxRetries int, retryDelay time.Duration) *Interactor {
-	return &Interactor{Provider: p, Downloader: d, Filestorer: f, MaxRetries: maxRetries, RetryDelay: retryDelay}
+func NewInteractor(p dataset.DatasetProvider, d dataset.DownloaderPort, f dataset.FilestorerPort, maxRetries int, retryDelay time.Duration) (*Interactor, error) {
+	if p == nil {
+		return nil, fmt.Errorf("provider is required")
+	}
+	if d == nil {
+		return nil, fmt.Errorf("downloader is required")
+	}
+	if f == nil {
+		return nil, fmt.Errorf("filestorer is required")
+	}
+	return &Interactor{Provider: p, Downloader: d, Filestorer: f, MaxRetries: maxRetries, RetryDelay: retryDelay}, nil
 }
 
 func (uc *Interactor) Run(ctx context.Context) ([]Result, error) {

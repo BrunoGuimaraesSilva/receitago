@@ -8,10 +8,11 @@ import (
 	"io"
 	"time"
 
+	"github.com/rs/zerolog"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func ImportSociosZip(ctx context.Context, coll *mongo.Collection, zipPath string) error {
+func ImportSociosZip(ctx context.Context, coll *mongo.Collection, zipPath string, logger zerolog.Logger) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
@@ -33,6 +34,9 @@ func ImportSociosZip(ctx context.Context, coll *mongo.Collection, zipPath string
 
 		const batchSize = 5000
 		var batch []interface{}
+		total := 0
+
+		logger.Info().Str("file", f.Name).Msg("Processing Socios file")
 
 		for {
 			row, err := reader.Read()
@@ -59,18 +63,22 @@ func ImportSociosZip(ctx context.Context, coll *mongo.Collection, zipPath string
 			}
 
 			batch = append(batch, doc)
+			total++
+
 			if len(batch) >= batchSize {
-				if err := insertBatch(ctx, coll, batch); err != nil {
+				if err := insertBatch(ctx, coll, batch, logger); err != nil {
 					return err
 				}
 				batch = batch[:0]
 			}
 		}
 		if len(batch) > 0 {
-			if err := insertBatch(ctx, coll, batch); err != nil {
+			if err := insertBatch(ctx, coll, batch, logger); err != nil {
 				return err
 			}
 		}
+
+		logger.Info().Str("file", f.Name).Int("total", total).Msg("🎯 Finished Socios file")
 	}
 	return nil
 }

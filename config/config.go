@@ -10,23 +10,24 @@ import (
 )
 
 type Config struct {
-	PostgresDSN string
-	MongoURI    string
-	DataDir     string
-	ServerPort  string
-	Timeout     time.Duration
+	PostgresDSN  string
+	MongoURI     string
+	DataDir      string
+	ServerPort   string
+	Timeout      time.Duration
+	CronSchedule string
 }
 
 func Load() *Config {
-	// Load from .env if exists
 	_ = godotenv.Load()
 
 	return &Config{
-		PostgresDSN: getenv("POSTGRES_DSN", "postgres://receitago:receitago@192.168.0.200:5432/receitago?sslmode=disable"),
-		MongoURI:    getenv("MONGO_URI", "mongodb://192.168.0.200:27017"),
-		DataDir:     getenv("DATA_DIR", "../../resources"),
-		ServerPort:  getenv("SERVER_PORT", "8080"),
-		Timeout:     getDuration("REQUEST_TIMEOUT", 120*time.Minute),
+		PostgresDSN:  getenv("POSTGRES_DSN", "postgres://receitago:receitago@localhost:5432/receitago?sslmode=disable"),
+		MongoURI:     getenv("MONGO_URI", "mongodb://localhost:27017"),
+		DataDir:      getenv("DATA_DIR", "./data"),
+		ServerPort:   getenv("SERVER_PORT", "8080"),
+		Timeout:      getDuration("REQUEST_TIMEOUT", 120*time.Minute),
+		CronSchedule: getenv("CRON_SCHEDULE", "0 6 * * 0"),
 	}
 }
 

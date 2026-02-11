@@ -41,7 +41,14 @@ func (m *Manager) Run(ctx context.Context) (Report, error) {
 }
 
 func (m *Manager) runStep(ctx context.Context, st Step) StepReport {
-	uc := download.NewInteractor(st.Provider, m.Downloader, m.Filestorer, st.MaxRetries, st.RetryDelay)
+	uc, err := download.NewInteractor(st.Provider, m.Downloader, m.Filestorer, st.MaxRetries, st.RetryDelay)
+	if err != nil {
+		return StepReport{
+			Name:    st.Name,
+			Success: false,
+			Error:   fmt.Errorf("create interactor: %w", err).Error(),
+		}
+	}
 	files, err := uc.Run(ctx)
 
 	srep := StepReport{

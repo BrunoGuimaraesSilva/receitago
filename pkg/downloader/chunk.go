@@ -20,18 +20,17 @@ type ChunkDownloader struct {
 	PrintProgress bool
 }
 
-func NewChunkDownloader(timeout time.Duration, chunkSizeMB int, maxRetries int, printProgress bool) *ChunkDownloader {
+func NewChunkDownloader(cfg ChunkConfig) *ChunkDownloader {
 	return &ChunkDownloader{
 		Client:        &http.Client{},
-		Timeout:       timeout,
-		ChunkSize:     int64(chunkSizeMB) * 1024 * 1024,
-		MaxRetries:    maxRetries,
-		PrintProgress: printProgress,
+		Timeout:       cfg.Timeout,
+		ChunkSize:     int64(cfg.ChunkSizeMB) * 1024 * 1024,
+		MaxRetries:    cfg.MaxRetries,
+		PrintProgress: cfg.ShowProgress,
 	}
 }
 
 func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSeekCloser, error) {
-	// HEAD request to get size
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return nil, err
@@ -50,7 +49,6 @@ func (d *ChunkDownloader) Download(ctx context.Context, url string) (iox.ReadSee
 		return nil, fmt.Errorf("invalid content length for %s", url)
 	}
 
-	// temp file
 	tmpPath := filepath.Join(os.TempDir(), "receitago-"+filepath.Base(url))
 	tmpFile, err := os.Create(tmpPath)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
@@ -63,7 +64,7 @@ func normalizeID(raw string) (int64, error) {
 	return strconv.ParseInt(prefixed, 10, 64)
 }
 
-func ImportDictionaryZip(ctx context.Context, repo *DictionaryRepo, zipPath, table string) error {
+func ImportDictionaryZip(ctx context.Context, repo *DictionaryRepo, zipPath, table string, logger zerolog.Logger) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
@@ -99,7 +100,7 @@ func ImportDictionaryZip(ctx context.Context, repo *DictionaryRepo, zipPath, tab
 
 			id, err := normalizeID(row[0])
 			if err != nil {
-				fmt.Printf("⚠️ skipping invalid id: %s\n", row[0])
+				logger.Warn().Str("id", row[0]).Msg("Skipping invalid id")
 				continue
 			}
 
@@ -125,7 +126,7 @@ func ImportDictionaryZip(ctx context.Context, repo *DictionaryRepo, zipPath, tab
 	return nil
 }
 
-func ImportAllDictionaries(ctx context.Context, repo *DictionaryRepo, baseDir string) error {
+func ImportAllDictionaries(ctx context.Context, repo *DictionaryRepo, baseDir string, logger zerolog.Logger) error {
 	files := []struct {
 		Name  string
 		Table string
@@ -139,20 +140,20 @@ func ImportAllDictionaries(ctx context.Context, repo *DictionaryRepo, baseDir st
 	}
 
 	cwd, _ := os.Getwd()
-	fmt.Println("📂 Current working dir:", cwd)
+	logger.Debug().Str("cwd", cwd).Msg("Current working directory")
 
 	for _, f := range files {
 		zipPath := filepath.Join(baseDir, f.Name)
 		if _, err := os.Stat(zipPath); os.IsNotExist(err) {
-			fmt.Printf("⚠️ missing: %s\n", zipPath)
+			logger.Warn().Str("file", zipPath).Msg("Dictionary file missing")
 			continue
 		}
 
-		fmt.Printf("📥 Importing %s into %s...\n", f.Name, f.Table)
-		if err := ImportDictionaryZip(ctx, repo, zipPath, f.Table); err != nil {
+		logger.Info().Str("file", f.Name).Str("table", f.Table).Msg("Importing dictionary")
+		if err := ImportDictionaryZip(ctx, repo, zipPath, f.Table, logger); err != nil {
 			return fmt.Errorf("import %s: %w", f.Table, err)
 		}
-		fmt.Printf("✅ Done %s\n", f.Table)
+		logger.Info().Str("table", f.Table).Msg("Dictionary import completed")
 	}
 	return nil
 }

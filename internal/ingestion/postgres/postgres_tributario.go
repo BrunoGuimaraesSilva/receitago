@@ -13,6 +13,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog"
 )
 
 type RegimeDTO struct {
@@ -61,7 +62,7 @@ func normalizeCNPJ(raw string) string {
 	return fmt.Sprintf("%014s", raw)
 }
 
-func ImportRegimeZip(ctx context.Context, repo *TributarioRepo, zipPath, dataset string) error {
+func ImportRegimeZip(ctx context.Context, repo *TributarioRepo, zipPath, dataset string, logger zerolog.Logger) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
@@ -131,7 +132,7 @@ func ImportRegimeZip(ctx context.Context, repo *TributarioRepo, zipPath, dataset
 	return nil
 }
 
-func ImportAllRegimes(ctx context.Context, repo *TributarioRepo, baseDir string) error {
+func ImportAllRegimes(ctx context.Context, repo *TributarioRepo, baseDir string, logger zerolog.Logger) error {
 	files := []struct {
 		Name    string
 		Dataset string
@@ -145,14 +146,14 @@ func ImportAllRegimes(ctx context.Context, repo *TributarioRepo, baseDir string)
 	for _, f := range files {
 		zipPath := filepath.Join(baseDir, f.Name)
 		if _, err := os.Stat(zipPath); os.IsNotExist(err) {
-			fmt.Printf("⚠️ missing: %s\n", zipPath)
+			logger.Warn().Str("file", zipPath).Msg("Regime file missing")
 			continue
 		}
-		fmt.Printf("📥 Importing %s into tributario.regimes...\n", f.Dataset)
-		if err := ImportRegimeZip(ctx, repo, zipPath, f.Dataset); err != nil {
+		logger.Info().Str("dataset", f.Dataset).Msg("Importing regime")
+		if err := ImportRegimeZip(ctx, repo, zipPath, f.Dataset, logger); err != nil {
 			return fmt.Errorf("import %s: %w", f.Dataset, err)
 		}
-		fmt.Printf("✅ Done %s\n", f.Dataset)
+		logger.Info().Str("dataset", f.Dataset).Msg("Regime import completed")
 	}
 	return nil
 }
